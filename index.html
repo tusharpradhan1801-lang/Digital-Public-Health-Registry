@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Public Health Registry - Building India's Health Data Backbone</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Leaflet CSS for map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Chart.js for graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0a192f; /* Dark Navy Blue */
+            color: #e6f1ff; /* Light Blueish White */
+        }
+        .glass-effect {
+            background: rgba(13, 30, 58, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(45, 212, 191, 0.1);
+        }
+        .primary-color { color: #5eead4; } /* Teal */
+        .secondary-color { color: #a8b2d1; } /* Slate */
+        .primary-bg { background-color: #5eead4; }
+        .primary-border { border-color: #5eead4; }
+        .gradient-text {
+            background: linear-gradient(90deg, #5eead4, #38bdf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .form-input {
+            background-color: rgba(13, 30, 58, 0.8);
+            border: 1px solid rgba(45, 212, 191, 0.2);
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #5eead4;
+            box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.3);
+        }
+        /* Leaflet map custom theme */
+        .leaflet-container {
+            background: #0a192f;
+        }
+        .leaflet-tile-pane {
+            filter: grayscale(1) invert(1) brightness(0.9) contrast(1.1);
+        }
+        .leaflet-control-zoom a, .leaflet-control-attribution a {
+            color: #5eead4 !important;
+        }
+        .leaflet-control-zoom a {
+            background-color: rgba(13, 30, 58, 0.8) !important;
+            border-bottom: 1px solid rgba(45, 212, 191, 0.2) !important;
+        }
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+            background: rgba(13, 30, 58, 0.9) !important;
+            color: #e6f1ff !important;
+            box-shadow: 0 0 15px rgba(94, 234, 212, 0.2);
+        }
+        .highlight-marker {
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Login Page -->
+    <div id="login-page" class="fixed inset-0 bg-[#0a192f] flex items-center justify-center z-[100] transition-opacity duration-500">
+        <div class="w-full max-w-md mx-auto p-8">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold gradient-text">HealthRegistry</h1>
+                <p class="secondary-color mt-2">Sign in to access the dashboard.</p>
+            </div>
+            <form id="login-form" class="glass-effect p-8 rounded-lg space-y-6">
+                <div>
+                    <label for="username" class="block mb-2 text-sm font-medium text-white">Username / Email</label>
+                    <input type="text" id="username" class="form-input w-full p-3 rounded-lg text-white" placeholder="user@healthregistry.gov" value="admin">
+                </div>
+                <div>
+                    <label for="password" class="block mb-2 text-sm font-medium text-white">Password</label>
+                    <input type="password" id="password" class="form-input w-full p-3 rounded-lg text-white" placeholder="••••••••" value="password">
+                </div>
+                <div id="login-error" class="text-red-400 text-sm text-center hidden">Invalid credentials. Please try again.</div>
+                <button type="submit" class="w-full bg-teal-400 text-gray-900 font-bold py-3 px-6 rounded-lg hover:bg-teal-300 transition-all shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2">
+                    <i data-lucide="log-in"></i>
+                    Sign In
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Application (Initially Hidden) -->
+    <div id="main-app" class="hidden">
+        <!-- Header -->
+        <header class="glass-effect sticky top-0 z-50">
+            <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+                <div class="text-2xl font-bold gradient-text">
+                    HealthRegistry
+                </div>
+                <div class="hidden md:flex space-x-8 items-center">
+                    <a href="#portal" class="secondary-color hover:primary-color transition-colors">Citizen Portal</a>
+                    <a href="#records" class="secondary-color hover:primary-color transition-colors">Patient Records</a>
+                    <a href="#heatmap" class="secondary-color hover:primary-color transition-colors">Dashboard</a>
+                    <a href="#contact" class="secondary-color hover:primary-color transition-colors">Team</a>
+                </div>
+                <button id="mobile-menu-button" class="md:hidden">
+                    <i data-lucide="menu" class="primary-color"></i>
+                </button>
+            </nav>
+            <!-- Mobile Menu -->
+            <div id="mobile-menu" class="hidden md:hidden px-6 pb-4">
+                <a href="#portal" class="block py-2 secondary-color hover:primary-color transition-colors">Citizen Portal</a>
+                <a href="#records" class="block py-2 secondary-color hover:primary-color transition-colors">Patient Records</a>
+                <a href="#heatmap" class="block py-2 secondary-color hover:primary-color transition-colors">Dashboard</a>
+                <a href="#contact" class="block py-2 secondary-color hover:primary-color transition-colors">Team</a>
+            </div>
+        </header>
+
+        <main class="container mx-auto px-6">
+
+            <!-- Hero Section -->
+            <section id="home" class="min-h-screen flex items-center">
+                <div class="max-w-3xl">
+                    <h1 class="text-5xl md:text-7xl font-bold gradient-text leading-tight">
+                        Digital Public Health Registry
+                    </h1>
+                    <h2 class="mt-4 text-xl md:text-2xl font-semibold secondary-color">
+                        Building India's Health Data Backbone.
+                    </h2>
+                    <p class="mt-6 text-lg secondary-color">
+                        A single, unified, and real-time health data system for India, making public health smarter, faster, and more transparent.
+                    </p>
+                    <div class="mt-8 flex gap-4">
+                        <a href="#portal" class="bg-teal-400 text-gray-900 font-bold py-3 px-6 rounded-lg hover:bg-teal-300 transition-all shadow-lg shadow-teal-500/20">
+                            Find a Hospital
+                        </a>
+                        <a href="#heatmap" class="bg-teal-400/10 text-teal-300 border border-teal-400/30 font-semibold py-3 px-6 rounded-lg hover:bg-teal-400/20 transition-all">
+                            View Outbreak Dashboard
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Citizen Portal Section -->
+            <section id="portal" class="py-20">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl font-bold gradient-text">Citizen View Portal</h2>
+                    <p class="mt-4 max-w-2xl mx-auto text-lg secondary-color">
+                        Find the nearest hospital with available beds, oxygen, or blood.
+                    </p>
+                </div>
+                <div class="glass-effect rounded-lg p-8 max-w-4xl mx-auto">
+                    <form id="search-form" class="grid sm:grid-cols-2 gap-6">
+                        <div><label for="location" class="block mb-2 text-sm font-medium text-white">Enter City or District</label><input type="text" id="location" class="form-input w-full p-3 rounded-lg text-white" placeholder="e.g., Keonjhar, Mumbai, Delhi"></div>
+                        <div><label class="block mb-2 text-sm font-medium text-white">Looking for</label><div class="flex flex-wrap gap-4 mt-3"><label class="flex items-center space-x-2 text-white cursor-pointer"><input type="checkbox" id="beds" name="resource" value="beds" class="h-5 w-5 rounded accent-teal-400"><span>Beds</span></label><label class="flex items-center space-x-2 text-white cursor-pointer"><input type="checkbox" id="oxygen" name="resource" value="oxygen" class="h-5 w-5 rounded accent-teal-400"><span>Oxygen</span></label><label class="flex items-center space-x-2 text-white cursor-pointer"><input type="checkbox" id="blood" name="resource" value="blood" class="h-5 w-5 rounded accent-teal-400"><span>Blood Bank</span></label></div></div>
+                        <div class="sm:col-span-2"><button type="submit" class="w-full bg-teal-400 text-gray-900 font-bold py-3 px-6 rounded-lg hover:bg-teal-300 transition-all shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2"><i data-lucide="search"></i>Search for Hospitals</button></div>
+                    </form>
+                </div>
+                <div id="search-results" class="mt-12 max-w-4xl mx-auto"></div>
+            </section>
+
+            <!-- Patient Records Section -->
+            <section id="records" class="py-20">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl font-bold gradient-text">Patient Health Records</h2>
+                    <p class="mt-4 max-w-2xl mx-auto text-lg secondary-color">
+                        Access a unified health record for any individual with a registered Patient ID.
+                    </p>
+                </div>
+                <div class="glass-effect rounded-lg p-8 max-w-4xl mx-auto">
+                    <form id="patient-search-form" class="flex flex-col sm:flex-row gap-4">
+                        <input type="text" id="patient-id" class="form-input w-full p-3 rounded-lg text-white" placeholder="Enter Patient ID (e.g., P123456789)">
+                        <button type="submit" class="bg-teal-400 text-gray-900 font-bold py-3 px-6 rounded-lg hover:bg-teal-300 transition-all shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2">
+                            <i data-lucide="search"></i>
+                            Search
+                        </button>
+                    </form>
+                </div>
+                <div id="patient-results" class="mt-12 max-w-4xl mx-auto">
+                    <!-- Example Patient Record -->
+                    <div class="glass-effect rounded-lg p-6">
+                        <div class="md:flex justify-between items-start">
+                            <div>
+                                <h3 class="text-2xl font-bold primary-color">Rohan Sharma</h3>
+                                <p class="secondary-color mt-1">Patient ID: P123456789</p>
+                            </div>
+                            <div class="mt-4 md:mt-0 text-left md:text-right">
+                                <p class="secondary-color">45 years old, Male</p>
+                                <p class="secondary-color">Blood Type: O+</p>
+                            </div>
+                        </div>
+                        <div class="border-t border-teal-400/20 my-4"></div>
+                        <div>
+                            <h4 class="text-lg font-semibold text-white mb-2">Current Health Status</h4>
+                            <p class="secondary-color">Stable, recovering from viral fever.</p>
+                        </div>
+                        <div class="mt-6">
+                            <h4 class="text-lg font-semibold text-white mb-2">Previous Health Reports</h4>
+                            <div class="space-y-3">
+                                <div class="border-t border-teal-400/20 pt-3 mt-3">
+                                    <p class="font-semibold text-white">Annual Check-up <span class="text-sm secondary-color font-normal">- 2024-07-15</span></p>
+                                    <p class="secondary-color text-sm mt-1">All vitals normal. Recommended vitamin D supplements.</p>
+                                </div>
+                                <div class="border-t border-teal-400/20 pt-3 mt-3">
+                                    <p class="font-semibold text-white">Blood Test <span class="text-sm secondary-color font-normal">- 2023-11-20</span></p>
+                                    <p class="secondary-color text-sm mt-1">Slightly high cholesterol. Advised dietary changes.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Predictive Outbreak Dashboard Section -->
+            <section id="heatmap" class="py-20">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl font-bold gradient-text">Predictive Outbreak Dashboard</h2>
+                    <p class="mt-4 max-w-2xl mx-auto text-lg secondary-color">
+                        Real-time heatmaps and alerts for potential disease outbreaks.
+                    </p>
+                </div>
+                <div class="glass-effect rounded-lg p-4">
+                    <div id="map-controls" class="flex flex-wrap justify-center gap-4 mb-4">
+                        <button data-disease="influenza" class="disease-btn active-btn bg-teal-400/20 text-teal-300 border border-teal-400/30 font-semibold py-2 px-5 rounded-lg transition-all">Influenza</button>
+                        <button data-disease="dengue" class="disease-btn bg-transparent text-slate-400 border border-slate-600 hover:bg-teal-400/10 hover:text-teal-300 font-semibold py-2 px-5 rounded-lg transition-all">Dengue</button>
+                        <button data-disease="covid" class="disease-btn bg-transparent text-slate-400 border border-slate-600 hover:bg-teal-400/10 hover:text-teal-300 font-semibold py-2 px-5 rounded-lg transition-all">COVID-19</button>
+                    </div>
+                    <div class="grid lg:grid-cols-2 gap-4">
+                        <div id="map" class="w-full h-[400px] lg:h-auto rounded-lg"></div>
+                        <div class="w-full h-[400px] lg:h-auto p-4">
+                            <canvas id="diseaseChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Team Section -->
+            <section id="contact" class="py-20 text-center">
+                 <h2 class="text-4xl font-bold gradient-text">Presented by Brainstormer</h2>
+                 <div class="mt-8 flex justify-center gap-8 flex-wrap">
+                    <div class="text-center"><p class="font-bold text-white">Sahil Pal</p><p class="text-sm primary-color">Team Leader</p></div>
+                    <div class="text-center"><p class="font-bold text-white">Tushar Kumar Pradhan</p><p class="text-sm secondary-color">Team Member</p></div>
+                    <div class="text-center"><p class="font-bold text-white">Shubham Nayak</p><p class="text-sm secondary-color">Team Member</p></div>
+                 </div>
+            </section>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="border-t border-teal-400/20 mt-20">
+            <div class="container mx-auto px-6 py-8 text-center secondary-color">
+                <p>&copy; 2024 Digital Public Health Registry by Brainstormer. All Rights Reserved.</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Leaflet JS for map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Leaflet Heatmap Plugin -->
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Lucide icons
+            lucide.createIcons();
+
+            // --- Login Page Functionality ---
+            const loginForm = document.getElementById('login-form');
+            const loginPage = document.getElementById('login-page');
+            const mainApp = document.getElementById('main-app');
+            const loginError = document.getElementById('login-error');
+
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+
+                if (username === 'admin' && password === 'password') {
+                    loginPage.classList.add('opacity-0');
+                    setTimeout(() => {
+                        loginPage.style.display = 'none';
+                        mainApp.classList.remove('hidden');
+                    }, 500);
+                } else {
+                    loginError.classList.remove('hidden');
+                }
+            });
+
+            // --- Main App Functionality ---
+
+            // Mobile menu toggle
+            const mobileMenuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            mobileMenuButton.addEventListener('click', () => {
+                mobileMenu.classList.toggle('hidden');
+            });
+
+            // --- Citizen Portal Functionality ---
+            const hospitals = [{ name: "District Headquarter Hospital", city: "Keonjhar", address: "Medical Rd, Keonjhar, Odisha", beds: { available: 15, total: 150 }, oxygen: true, blood: true }, { name: "Tata Steel Hospital", city: "Joda", address: "Joda, Keonjhar, Odisha", beds: { available: 8, total: 80 }, oxygen: true, blood: false }, { name: "Apollo Hospital", city: "Bhubaneswar", address: "Plot No. 251, Sainik School Rd", beds: { available: 45, total: 300 }, oxygen: true, blood: true }, { name: "AMRI Hospital", city: "Bhubaneswar", address: "Khandagiri, Bhubaneswar", beds: { available: 0, total: 250 }, oxygen: false, blood: true }, { name: "Fortis Hospital", city: "Mumbai", address: "Mulund Goregaon Link Rd, Mulund West", beds: { available: 60, total: 400 }, oxygen: true, blood: true }, { name: "Lilavati Hospital", city: "Mumbai", address: "Bandra West, Mumbai", beds: { available: 22, total: 350 }, oxygen: true, blood: true }, { name: "AIIMS", city: "Delhi", address: "Ansari Nagar, New Delhi", beds: { available: 120, total: 2000 }, oxygen: true, blood: true }, { name: "Max Healthcare", city: "Delhi", address: "Saket, New Delhi", beds: { available: 5, total: 500 }, oxygen: true, blood: false }, { name: "Manipal Hospital", city: "Bangalore", address: "Old Airport Road, Bangalore", beds: { available: 35, total: 600 }, oxygen: true, blood: true }, { name: "Narayana Health City", city: "Bangalore", address: "Bommasandra, Bangalore", beds: { available: 75, total: 1200 }, oxygen: true, blood: true }];
+            const searchForm = document.getElementById('search-form');
+            const searchResultsContainer = document.getElementById('search-results');
+            searchForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                const location = document.getElementById('location').value.toLowerCase().trim();
+                const resources = Array.from(document.querySelectorAll('input[name="resource"]:checked')).map(cb => cb.value);
+                searchResultsContainer.innerHTML = `<div class="text-center p-8"><p class="secondary-color text-lg">Searching for hospitals...</p></div>`;
+                setTimeout(() => {
+                    const filteredHospitals = hospitals.filter(hospital => {
+                        const matchesLocation = hospital.city.toLowerCase().includes(location) || hospital.address.toLowerCase().includes(location);
+                        if (!matchesLocation) return false;
+                        if (resources.length === 0) return true;
+                        return resources.every(resource => {
+                            if (resource === 'beds') return hospital.beds.available > 0;
+                            if (resource === 'oxygen') return hospital.oxygen;
+                            if (resource === 'blood') return hospital.blood;
+                            return false;
+                        });
+                    });
+                    displayResults(filteredHospitals);
+                }, 500);
+            });
+            function displayResults(results) {
+                if (results.length === 0) {
+                    searchResultsContainer.innerHTML = `<div class="glass-effect rounded-lg text-center p-8"><h3 class="text-2xl font-bold text-white mb-2">No Hospitals Found</h3><p class="secondary-color">Try adjusting your search criteria or location.</p></div>`;
+                    return;
+                }
+                const resultsHTML = results.map(hospital => `<div class="glass-effect rounded-lg p-6 mb-4 transition-all hover:border-teal-400/50 border border-transparent"><div class="md:flex justify-between items-start"><div><h3 class="text-2xl font-bold primary-color">${hospital.name}</h3><p class="secondary-color mt-1">${hospital.address}</p></div><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hospital.name + ", " + hospital.address)}" target="_blank" class="mt-4 md:mt-0 inline-block bg-teal-400/10 text-teal-300 text-sm font-semibold py-2 px-4 rounded-lg hover:bg-teal-400/20 transition-all">View on Map</a></div><div class="border-t border-teal-400/20 my-4"></div><div class="grid sm:grid-cols-3 gap-4 text-center"><div><p class="text-sm secondary-color">Beds Available</p><p class="text-2xl font-bold ${hospital.beds.available > 0 ? 'text-green-400' : 'text-red-400'}">${hospital.beds.available} <span class="text-lg font-medium secondary-color">/ ${hospital.beds.total}</span></p></div><div><p class="text-sm secondary-color">Oxygen Supply</p><p class="text-2xl font-bold ${hospital.oxygen ? 'text-green-400' : 'text-red-400'}">${hospital.oxygen ? 'Available' : 'Unavailable'}</p></div><div><p class="text-sm secondary-color">Blood Bank</p><p class="text-2xl font-bold ${hospital.blood ? 'text-green-400' : 'text-red-400'}">${hospital.blood ? 'Available' : 'Unavailable'}</p></div></div></div>`).join('');
+                searchResultsContainer.innerHTML = resultsHTML;
+            }
+
+            // --- Patient Records Functionality ---
+            const patients = [
+                { id: "P123456789", name: "Rohan Sharma", age: 45, gender: "Male", bloodType: "O+", currentStatus: "Stable, recovering from viral fever.", reports: [{ date: "2024-07-15", title: "Annual Check-up", summary: "All vitals normal. Recommended vitamin D supplements." }, { date: "2023-11-20", title: "Blood Test", summary: "Slightly high cholesterol. Advised dietary changes." }] },
+                { id: "P987654321", name: "Priya Singh", age: 32, gender: "Female", bloodType: "A-", currentStatus: "Under observation for hypertension.", reports: [{ date: "2024-08-01", title: "ER Visit - High BP", summary: "Admitted for observation due to high blood pressure reading." }, { date: "2024-02-10", title: "Allergy Test", summary: "Positive for dust mite allergy." }] }
+            ];
+            const patientSearchForm = document.getElementById('patient-search-form');
+            const patientResultsContainer = document.getElementById('patient-results');
+            patientSearchForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                const patientId = document.getElementById('patient-id').value.trim().toUpperCase();
+                const patient = patients.find(p => p.id.toUpperCase() === patientId);
+                displayPatientRecord(patient);
+            });
+
+            function displayPatientRecord(patient) {
+                if (!patient) {
+                    patientResultsContainer.innerHTML = `<div class="glass-effect rounded-lg text-center p-8"><h3 class="text-2xl font-bold text-white mb-2">Patient Not Found</h3><p class="secondary-color">Please check the Patient ID and try again.</p></div>`;
+                    return;
+                }
+                const reportsHTML = patient.reports.map(report => `
+                    <div class="border-t border-teal-400/20 pt-3 mt-3">
+                        <p class="font-semibold text-white">${report.title} <span class="text-sm secondary-color font-normal">- ${report.date}</span></p>
+                        <p class="secondary-color text-sm mt-1">${report.summary}</p>
+                    </div>
+                `).join('');
+                const patientHTML = `
+                    <div class="glass-effect rounded-lg p-6">
+                        <div class="md:flex justify-between items-start">
+                            <div>
+                                <h3 class="text-2xl font-bold primary-color">${patient.name}</h3>
+                                <p class="secondary-color mt-1">Patient ID: ${patient.id}</p>
+                            </div>
+                            <div class="mt-4 md:mt-0 text-left md:text-right">
+                                <p class="secondary-color">${patient.age} years old, ${patient.gender}</p>
+                                <p class="secondary-color">Blood Type: ${patient.bloodType}</p>
+                            </div>
+                        </div>
+                        <div class="border-t border-teal-400/20 my-4"></div>
+                        <div>
+                            <h4 class="text-lg font-semibold text-white mb-2">Current Health Status</h4>
+                            <p class="secondary-color">${patient.currentStatus}</p>
+                        </div>
+                        <div class="mt-6">
+                            <h4 class="text-lg font-semibold text-white mb-2">Previous Health Reports</h4>
+                            <div class="space-y-3">${reportsHTML}</div>
+                        </div>
+                    </div>
+                `;
+                patientResultsContainer.innerHTML = patientHTML;
+            }
+
+            // --- Heatmap and Graph Dashboard Functionality ---
+            const diseaseDataPoints = {
+                influenza: [ { lat: 28.6139, lng: 77.2090, intensity: 0.8, city: 'Delhi', cases: 2500 }, { lat: 19.0760, lng: 72.8777, intensity: 0.9, city: 'Mumbai', cases: 2100 }, { lat: 12.9716, lng: 77.5946, intensity: 0.7, city: 'Bangalore', cases: 2200 }, { lat: 22.5726, lng: 88.3639, intensity: 0.6, city: 'Kolkata', cases: 1800 }, { lat: 17.3850, lng: 78.4867, intensity: 0.5, city: 'Hyderabad', cases: 1400 }, { lat: 20.2961, lng: 85.8245, intensity: 0.7, city: 'Bhubaneswar', cases: 1500 }, { lat: 26.9124, lng: 75.7873, intensity: 0.6, city: 'Jaipur', cases: 1200 } ],
+                dengue: [ { lat: 19.0760, lng: 72.8777, intensity: 0.6, city: 'Mumbai', cases: 1700 }, { lat: 12.9716, lng: 77.5946, intensity: 0.5, city: 'Bangalore', cases: 1500 }, { lat: 22.5726, lng: 88.3639, intensity: 0.9, city: 'Kolkata', cases: 1300 }, { lat: 13.0827, lng: 80.2707, intensity: 0.8, city: 'Chennai', cases: 1000 }, { lat: 20.2961, lng: 85.8245, intensity: 0.9, city: 'Bhubaneswar', cases: 1100 }, { lat: 23.0225, lng: 72.5714, intensity: 0.4, city: 'Ahmedabad', cases: 900 }, { lat: 9.9252, lng: 78.1198, intensity: 0.7, city: 'Madurai', cases: 800 } ],
+                covid: [ { lat: 28.6139, lng: 77.2090, intensity: 1.0, city: 'Delhi', cases: 900 }, { lat: 19.0760, lng: 72.8777, intensity: 1.0, city: 'Mumbai', cases: 1200 }, { lat: 12.9716, lng: 77.5946, intensity: 0.9, city: 'Bangalore', cases: 800 }, { lat: 13.0827, lng: 80.2707, intensity: 0.8, city: 'Chennai', cases: 500 }, { lat: 25.5941, lng: 85.1376, intensity: 0.5, city: 'Patna', cases: 250 }, { lat: 17.3850, lng: 78.4867, intensity: 0.7, city: 'Hyderabad', cases: 300 }, { lat: 22.5726, lng: 88.3639, intensity: 0.8, city: 'Kolkata', cases: 400 } ]
+            };
+            const diseaseChartData = {
+                labels: ['7 wks ago', '6 wks ago', '5 wks ago', '4 wks ago', '3 wks ago', 'Last Week', 'This Week'],
+                influenza: { label: 'Influenza Cases', data: [1200, 1500, 1400, 1800, 2200, 2100, 2500], color: '#f472b6' },
+                dengue: { label: 'Dengue Cases', data: [800, 900, 1100, 1000, 1300, 1500, 1700], color: '#fb923c' },
+                covid: { label: 'COVID-19 Cases', data: [400, 300, 250, 500, 800, 1200, 900], color: '#60a5fa' }
+            };
+
+            const map = L.map('map').setView([22.5937, 78.9629], 5);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+
+            let heatLayer;
+            let markers = [];
+            
+            function updateHeatmap(disease) {
+                if (heatLayer) map.removeLayer(heatLayer);
+                markers.forEach(marker => map.removeLayer(marker));
+                markers = [];
+
+                const points = diseaseDataPoints[disease].map(p => [p.lat, p.lng, p.intensity]);
+                heatLayer = L.heatLayer(points, {
+                    radius: 35, blur: 25, maxZoom: 12, gradient: {0.4: '#3b82f6', 0.65: '#22c55e', 1: '#ef4444'}
+                }).addTo(map);
+
+                diseaseDataPoints[disease].forEach((point) => {
+                    const marker = L.circleMarker([point.lat, point.lng], {
+                        radius: 8,
+                        fillColor: "rgba(255, 255, 255, 0.1)",
+                        color: "#5eead4",
+                        weight: 1,
+                        opacity: 0.5,
+                        fillOpacity: 0.1,
+                        className: 'highlight-marker'
+                    }).addTo(map);
+
+                    marker.bindPopup(`<b>${point.city}</b><br>Cases this week: ${point.cases}`);
+                    markers.push(marker);
+                });
+            }
+
+            const ctx = document.getElementById('diseaseChart').getContext('2d');
+            const diseaseChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: diseaseChartData.labels,
+                    datasets: [{
+                        label: '', data: [], borderColor: '', backgroundColor: 'rgba(0,0,0,0)', tension: 0.4, fill: false,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onHover: (event, chartElement) => {
+                        markers.forEach(marker => {
+                            marker.setStyle({fillColor: "rgba(255, 255, 255, 0.1)", fillOpacity: 0.1, radius: 8});
+                        });
+                        if (chartElement.length > 0) {
+                            const dataIndex = chartElement[0].index;
+                            if (markers[dataIndex]) {
+                                markers[dataIndex].setStyle({fillColor: '#5eead4', fillOpacity: 0.8, radius: 12});
+                                markers[dataIndex].openPopup();
+                            }
+                        }
+                    },
+                    plugins: { legend: { labels: { color: '#a8b2d1' } }, tooltip: { backgroundColor: 'rgba(13, 30, 58, 0.8)', titleColor: '#e6f1ff', bodyColor: '#a8b2d1' } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#a8b2d1' }, grid: { color: 'rgba(94, 234, 212, 0.1)' } },
+                        x: { ticks: { color: '#a8b2d1' }, grid: { color: 'rgba(94, 234, 212, 0.1)' } }
+                    }
+                }
+            });
+
+            function updateChart(disease) {
+                const chartData = diseaseChartData[disease];
+                diseaseChart.data.datasets[0].label = chartData.label;
+                diseaseChart.data.datasets[0].data = chartData.data;
+                diseaseChart.data.datasets[0].borderColor = chartData.color;
+                diseaseChart.update();
+            }
+
+            const diseaseButtons = document.querySelectorAll('.disease-btn');
+            diseaseButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    diseaseButtons.forEach(btn => {
+                        btn.classList.remove('active-btn', 'bg-teal-400/20', 'text-teal-300', 'border-teal-400/30');
+                        btn.classList.add('bg-transparent', 'text-slate-400', 'border-slate-600');
+                    });
+                    button.classList.add('active-btn', 'bg-teal-400/20', 'text-teal-300', 'border-teal-400/30');
+                    button.classList.remove('bg-transparent', 'text-slate-400', 'border-slate-600');
+                    
+                    const selectedDisease = button.dataset.disease;
+                    updateHeatmap(selectedDisease);
+                    updateChart(selectedDisease);
+                });
+            });
+
+            updateHeatmap('influenza');
+            updateChart('influenza');
+        });
+    </script>
+</body>
+</html>
